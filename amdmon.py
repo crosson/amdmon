@@ -32,6 +32,14 @@ METRICS: list[MetricSpec] = [
     MetricSpec("gfx_clk", "GPU Clock", "#6d597a", "MHz", None),
 ]
 
+SESSION_MAX_KEYS = [
+    "hotspot_temperature",
+    "memory_temperature",
+    "power_usage",
+    "vram_used",
+    "gfx_clk",
+]
+
 
 class LineChart(tk.Canvas):
     def __init__(self, master: tk.Misc, title: str, color: str, **kwargs: Any) -> None:
@@ -57,12 +65,12 @@ class LineChart(tk.Canvas):
         self.delete("all")
         w = max(self.winfo_width(), 10)
         h = max(self.winfo_height(), 10)
-        pad_l, pad_r, pad_t, pad_b = 44, 10, 22, 18
+        pad_l, pad_r, pad_t, pad_b = 44, 10, 30, 18
         plot_w = max(w - pad_l - pad_r, 10)
         plot_h = max(h - pad_t - pad_b, 10)
 
-        self.create_text(8, 8, anchor="nw", text=self.title, fill="#f0f0f0", font=("TkDefaultFont", 9, "bold"))
-        self.create_text(w - 8, 8, anchor="ne", text=latest_text, fill="#d9d9d9", font=("TkDefaultFont", 9))
+        self.create_text(8, 7, anchor="nw", text=self.title, fill="#f0f0f0", font=("TkDefaultFont", 9, "bold"))
+        self.create_text(w - 8, 7, anchor="ne", text=latest_text, fill="#d9d9d9", font=("TkDefaultFont", 9))
 
         # Grid
         for i in range(5):
@@ -122,6 +130,8 @@ class AmdMonApp:
         self.timestamps: deque[float] = deque()
         self.series: dict[str, deque[float | None]] = {m.key: deque() for m in METRICS}
         self.units: dict[str, str] = {}
+        self.session_max: dict[str, float | None] = {key: None for key in SESSION_MAX_KEYS}
+        self.session_max_vars: dict[str, tk.StringVar] = {}
 
         self.chart_widgets: dict[str, LineChart] = {}
         self._build_ui()
@@ -197,7 +207,47 @@ class AmdMonApp:
             chart.grid(row=r, column=c, sticky="nsew", padx=6, pady=6)
             self.chart_widgets[metric.key] = chart
 
+        self._build_session_max_panel(charts_frame)
+
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def _build_session_max_panel(self, parent: ttk.Frame) -> None:
+        panel = tk.Frame(parent, bg="#111111", highlightthickness=1, highlightbackground="#333333")
+        panel.grid(row=3, column=1, sticky="nsew", padx=6, pady=6)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=0)
+
+        header = tk.Label(
+            panel,
+            text="Session Max",
+            bg="#111111",
+            fg="#f0f0f0",
+            anchor="w",
+            font=("TkDefaultFont", 10, "bold"),
+        )
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(8, 10))
+
+        labels = {
+            "hotspot_temperature": "Hotspot Temp",
+            "memory_temperature": "VRAM Temp",
+            "power_usage": "Power",
+            "vram_used": "VRAM Used",
+            "gfx_clk": "GPU Clock",
+        }
+        for row, key in enumerate(SESSION_MAX_KEYS, start=1):
+            tk.Label(panel, text=labels[key], bg="#111111", fg="#d8d8d8", anchor="w").grid(
+                row=row, column=0, sticky="w", padx=(10, 8), pady=4
+            )
+            value_var = tk.StringVar(value="--")
+            self.session_max_vars[key] = value_var
+            tk.Label(
+                panel,
+                textvariable=value_var,
+                bg="#111111",
+                fg="#ffffff",
+                anchor="e",
+                font=("TkDefaultFont", 9, "bold"),
+            ).grid(row=row, column=1, sticky="e", padx=(8, 10), pady=4)
 
     def toggle_running(self) -> None:
         if self.running:
@@ -267,6 +317,9 @@ class AmdMonApp:
             if unit:
                 self.units[metric.key] = unit
             self.series[metric.key].append(value)
+            if metric.key in self.session_max and value is not None:
+                prev = self.session_max[metric.key]
+                self.session_max[metric.key] = value if prev is None else max(prev, value)
 
         self.last_sample_time.set(time.strftime("%H:%M:%S"))
         self.status_text.set(f"Running (GPU {gpu})" if self.running else f"Sampled GPU {gpu}")
@@ -325,6 +378,8 @@ class AmdMonApp:
         self.timestamps.clear()
         for metric in METRICS:
             self.series[metric.key].clear()
+        for key in SESSION_MAX_KEYS:
+            self.session_max[key] = None
         self.last_sample_time.set("No samples yet")
         self._redraw_all()
 
@@ -336,13 +391,23 @@ class AmdMonApp:
             unit = self.units.get(metric.key) or metric.unit or ""
             latest_text = "--"
             if latest is not None:
-                if unit == "%":
-                    latest_text = f"{latest:.0f}{unit}"
-                elif unit in {"W", "C", "MHz"}:
-                    latest_text = f"{latest:.0f} {unit}"
-                else:
-                    latest_text = f"{latest:.2f} {unit}".strip()
+                latest_text = self._format_value(latest, unit)
             self.chart_widgets[metric.key].redraw(xs, ys, latest_text, metric.default_max)
+        self._refresh_session_max_panel()
+
+    def _refresh_session_max_panel(self) -> None:
+        for key in SESSION_MAX_KEYS:
+            metric = next((m for m in METRICS if m.key == key), None)
+            unit = self.units.get(key) or (metric.unit if metric else "") or ""
+            value = self.session_max.get(key)
+            self.session_max_vars[key].set("--" if value is None else self._format_value(value, unit))
+
+    def _format_value(self, value: float, unit: str) -> str:
+        if unit == "%":
+            return f"{value:.0f}{unit}"
+        if unit in {"W", "C", "MHz"}:
+            return f"{value:.0f} {unit}"
+        return f"{value:.2f} {unit}".strip()
 
     def _set_error(self, message: str) -> None:
         self.error_label.configure(text=message)
