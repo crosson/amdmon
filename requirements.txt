@@ -1,0 +1,6 @@
+# No external pip dependencies are required.
+# This app uses only Python standard library modules.
+#
+# Ubuntu note:
+# Tkinter is provided by the system package, not pip:
+#   sudo apt install python3-tk
