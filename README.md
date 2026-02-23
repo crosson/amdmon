@@ -2,6 +2,10 @@
 
 Desktop app for live AMD GPU monitoring on Ubuntu using `amd-smi`.
 
+## Preview
+
+![AMD GPU Monitor screenshot](example.png)
+
 ## Features
 
 - Select GPU index (`-g N`)
