@@ -28,6 +28,43 @@ sudo apt install python3-tk
 python3 amdmon.py
 ```
 
+Or run it directly (the script already includes a Python shebang):
+
+```bash
+chmod +x amdmon.py
+./amdmon.py
+```
+
+## Add `amdmon` to your PATH (symlink)
+
+If you want to run it with a shorter command (`amdmon`) without a wrapper script, create a symlink in a directory that is already on your `PATH` (for example `~/.local/bin`).
+
+Create the directory if needed:
+
+```bash
+mkdir -p ~/.local/bin
+```
+
+Create the symlink:
+
+```bash
+ln -sf /home/crosson/git/amdmon/amdmon.py ~/.local/bin/amdmon
+chmod +x /home/crosson/git/amdmon/amdmon.py
+```
+
+Then run:
+
+```bash
+amdmon
+```
+
+If `amdmon` is not found, make sure `~/.local/bin` is in your `PATH`:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
 ## Notes
 
 - GPU index maps directly to `amd-smi monitor -g <index> --json`.
