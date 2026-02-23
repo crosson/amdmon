@@ -10,7 +10,7 @@ import tkinter as tk
 from collections import deque
 from dataclasses import dataclass
 from tkinter import ttk
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,17 @@ class LineChart(tk.Canvas):
         )
         self.title = title
         self.color = color
-        self.bind("<Configure>", lambda _e: self.redraw([], [], "", None))
+        self._redraw_callback: Callable[[], None] | None = None
+        self.bind("<Configure>", self._on_configure)
+
+    def set_redraw_callback(self, callback: Callable[[], None]) -> None:
+        self._redraw_callback = callback
+
+    def _on_configure(self, _event: tk.Event[Any]) -> None:
+        if self._redraw_callback is not None:
+            self._redraw_callback()
+        else:
+            self.redraw([], [], "", None)
 
     def redraw(
         self,
@@ -206,6 +216,8 @@ class AmdMonApp:
             r, c = divmod(idx, 2)
             chart.grid(row=r, column=c, sticky="nsew", padx=6, pady=6)
             self.chart_widgets[metric.key] = chart
+        for chart in self.chart_widgets.values():
+            chart.set_redraw_callback(self._redraw_all)
 
         self._build_session_max_panel(charts_frame)
 
@@ -282,7 +294,11 @@ class AmdMonApp:
         self._schedule_next()
 
     def poll_once(self) -> None:
-        gpu = self.gpu_index.get()
+        try:
+            gpu = self.gpu_index.get()
+        except tk.TclError:
+            self._set_error("GPU Index must be an integer.")
+            return
         cmd = ["amd-smi", "monitor", "-g", str(gpu), "--json"]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=8, check=False)
@@ -337,7 +353,13 @@ class AmdMonApp:
         for record in records:
             if record.get("gpu") == gpu_index:
                 return record
-        return records[0] if records else None
+
+        if len(records) == 1:
+            return records[0]
+
+        # Avoid silently graphing the wrong GPU when a multi-GPU payload does not
+        # contain the requested index.
+        return None
 
     def _read_metric(self, record: dict[str, Any], key: str) -> tuple[float | None, str | None]:
         raw = record.get(key)
@@ -378,6 +400,7 @@ class AmdMonApp:
         self.timestamps.clear()
         for metric in METRICS:
             self.series[metric.key].clear()
+        self.units.clear()
         for key in SESSION_MAX_KEYS:
             self.session_max[key] = None
         self.last_sample_time.set("No samples yet")

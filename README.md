@@ -13,7 +13,7 @@ Desktop app for live AMD GPU monitoring on Ubuntu using `amd-smi`.
 ## Requirements
 
 - Ubuntu with AMD SMI installed (`amd-smi` command available)
-- Python 3
+- Python 3.10+ (the app uses modern type-hint syntax such as `str | None`)
 - Tkinter (`python3-tk` package on Ubuntu)
 
 Install Tkinter if needed:
@@ -70,3 +70,12 @@ source ~/.bashrc
 - GPU index maps directly to `amd-smi monitor -g <index> --json`.
 - If you use `-g 0` for your `r9700 pro`, set GPU Index to `0` in the app.
 - Errors from `amd-smi` are shown in the UI so you can quickly spot invalid GPU indexes or missing permissions.
+
+## Troubleshooting
+
+- `amd-smi: command not found`: install ROCm/AMD SMI and confirm `amd-smi` is on your `PATH`.
+- Permission or access errors from `amd-smi`: some systems require additional permissions (or running the command with elevated privileges) to read GPU telemetry.
+- No data for a selected GPU index: verify the index with `amd-smi monitor --json` and then choose the matching `-g <index>` in the app.
+
+## Vibed
+OpenAI Codex vibed
