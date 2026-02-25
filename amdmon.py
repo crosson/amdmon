@@ -131,7 +131,7 @@ class AmdMonApp:
 
         self.gpu_index = tk.IntVar(value=0)
         self.interval_sec = tk.IntVar(value=2)
-        self.history_sec = tk.IntVar(value=120)
+        self.history_sec = tk.IntVar(value=300)
         self.running = False
         self.after_id: str | None = None
         self.status_text = tk.StringVar(value="Stopped")
@@ -147,6 +147,7 @@ class AmdMonApp:
         self._build_ui()
         self._trim_history()
         self._redraw_all()
+        self._start()
 
     def _build_ui(self) -> None:
         style = ttk.Style()
